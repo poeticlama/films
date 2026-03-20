@@ -1,11 +1,12 @@
+import { Route, Routes } from 'react-router'
+import FilmsPage from './pages/FilmsPage.tsx'
+
 function App() {
 
   return (
-    <>
-      <div className="text-3xl font-bold">
-        films...........?
-      </div>
-    </>
+    <Routes>
+      <Route index element={<FilmsPage />} />
+    </Routes>
   )
 }
 
