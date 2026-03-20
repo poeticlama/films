@@ -4,7 +4,7 @@ type FilmPageProps = {
   film: Film
 }
 
-const FilmCard = ({film}: FilmPageProps) => {
+const FilmCard = ({ film }: FilmPageProps) => {
   const posterUrl = film.poster.previewUrl || film.poster.url || film.backdrop.previewUrl
   const primaryRating = film.rating.kp > 0 ? film.rating.kp : film.rating.imdb > 0 ? film.rating.imdb : null
 
@@ -13,7 +13,8 @@ const FilmCard = ({film}: FilmPageProps) => {
       {posterUrl ? (
         <img src={posterUrl} alt={film.name} className="h-96 w-full object-cover" />
       ) : (
-        <div className="flex h-96 w-full items-center justify-center bg-slate-200 text-slate-500" aria-label="Poster is not available">
+        <div className="flex h-96 w-full items-center justify-center bg-slate-200 text-slate-500"
+             aria-label="Poster is not available">
           <svg
             viewBox="0 0 24 24"
             className="h-20 w-20"
@@ -32,8 +33,9 @@ const FilmCard = ({film}: FilmPageProps) => {
 
       <div className="flex items-start justify-between gap-4 p-4">
         <div className="min-w-0">
-          <h2 className="truncate text-lg font-semibold text-slate-800">{film.name || film.names.name}</h2>
-          <p className="text-sm text-slate-500">{film.year || ""}</p>
+          <h2
+            className="truncate text-lg font-semibold text-slate-800">{film.name || film.alternativeName || film.names.name}</h2>
+          <p className="text-sm text-slate-500">{film.year || ''}</p>
         </div>
 
         {(primaryRating && <div className="rounded-lg bg-amber-100 px-2 py-1 text-sm font-semibold text-amber-700">

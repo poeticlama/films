@@ -1,9 +1,19 @@
 import { useEffect, useState } from 'react'
 import type { Film } from '../types.ts'
 
+type QueryParamValue = string | string[] | null | undefined
+export type FilmsQueryParams = Record<string, QueryParamValue>
+
 type FilmsResponse = {
   docs?: unknown[]
+  next: string | null
+  'limit': number
+  'prev': string | null
+  'hasNext': boolean
+  'hasPrev': boolean
 }
+
+const BASE_URL = 'https://api.poiskkino.dev/v1.5/movie?limit=50'
 
 const EMPTY_IMAGE = ''
 
@@ -24,10 +34,21 @@ const asBoolean = (value: unknown): boolean => {
 }
 
 const asNames = (value: unknown): Film['names'] => {
-  const source = Array.isArray(value)
-    ? asObject(value[0])
-    : asObject(value)
+  if (Array.isArray(value)) {
+    const source = value
+      .map((item) => asObject(item))
+      .find((item) => asString(item.name) !== '')
 
+    if (source) {
+      return {
+        name: asString(source.name),
+        language: asString(source.language),
+        type: asString(source.type),
+      }
+    }
+  }
+
+  const source = asObject(value)
   return {
     name: asString(source.name),
     language: asString(source.language),
@@ -103,22 +124,52 @@ const serializeFilm = (value: unknown): Film => {
   }
 }
 
-export const useFilms = () => {
+export const useFilms = (params?: FilmsQueryParams) => {
   const [films, setFilms] = useState<Film[]>([])
+  const queryParams = new URLSearchParams()
+
+  Object.entries(params ?? {}).forEach(([key, value]) => {
+    if (Array.isArray(value)) {
+      value
+        .map((item) => item.trim())
+        .filter((item) => item !== '')
+        .forEach((item) => queryParams.append(key, item))
+      return
+    }
+
+    if (typeof value === 'string') {
+      const trimmedValue = value.trim()
+      if (trimmedValue !== '') {
+        queryParams.append(key, trimmedValue)
+      }
+    }
+  })
+
+  const queryString = queryParams.toString()
+  const apiUrl = queryString ? `${BASE_URL}&${queryString}` : BASE_URL
 
   useEffect(() => {
-    fetch('https://api.poiskkino.dev/v1.5/movie', {
+    const controller = new AbortController()
+    setFilms([])
+
+    fetch(`${apiUrl}`, {
+      signal: controller.signal,
       headers: {
         'X-API-KEY': import.meta.env.VITE_API_KEY,
-      }
+      },
     }).then((response) => response.json())
       .then((res: FilmsResponse) => {
         const docs = Array.isArray(res.docs) ? res.docs : []
         const serializedFilms = docs.map(serializeFilm)
-
-        setFilms((films) => [...films, ...serializedFilms])
+        setFilms(serializedFilms)
       })
-  }, [])
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return
+        throw error
+      })
+
+    return () => controller.abort()
+  }, [apiUrl])
 
   return films
 }
