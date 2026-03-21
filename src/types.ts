@@ -51,3 +51,35 @@ type FilmName = {
   language: string
   type: string
 }
+
+export type FilmDetails = {
+  id: number
+  name: string
+  alternativeName: string
+  description: string
+  shortDescription: string
+  year: number
+  poster: {
+    url: string
+    previewUrl: string
+  }
+  backdrop: {
+    url: string
+    previewUrl: string
+  }
+  rating: {
+    kp: number
+    imdb: number
+    tmdb: number
+    filmCritics: number
+    russianFilmCritics: number
+    await: number
+  }
+  genres: FilmGenre[]
+  premiere: {
+    world: string
+    russia: string
+    digital: string
+  }
+  movieLength: number
+}

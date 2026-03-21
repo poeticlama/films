@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Film } from '../types.ts'
+import type { Film, FilmDetails } from '../types.ts'
 import { useIntersectionObserver } from '@siberiacancode/reactuse'
 
 type QueryParamValue = string | string[] | null | undefined
@@ -14,7 +14,8 @@ type FilmsResponse = {
   'hasPrev': boolean
 }
 
-const BASE_URL = 'https://api.poiskkino.dev/v1.5/movie?limit=50&sortField=rating.kp&sortType=-1'
+const BASE_URL_GET_FILMS = 'https://api.poiskkino.dev/v1.5/movie?limit=50&sortField=rating.kp&sortType=-1'
+const BASE_URL_GET_FILM = 'https://api.poiskkino.dev/v1.4/movie/'
 
 const EMPTY_IMAGE = ''
 
@@ -101,6 +102,16 @@ const asRatingBlock = (value: unknown): Film['rating'] => {
   }
 }
 
+const asPremiere = (value: unknown): FilmDetails['premiere'] => {
+  const obj = asObject(value)
+
+  return {
+    world: asString(obj.world),
+    russia: asString(obj.russia),
+    digital: asString(obj.digital),
+  }
+}
+
 const serializeFilm = (value: unknown): Film => {
   const obj = asObject(value)
 
@@ -122,6 +133,25 @@ const serializeFilm = (value: unknown): Film => {
     votes: asRatingBlock(obj.votes),
     year: asNumber(obj.year),
     names: asNames(obj.names),
+  }
+}
+
+const serializeFilmDetails = (value: unknown): FilmDetails => {
+  const obj = asObject(value)
+
+  return {
+    id: asNumber(obj.id),
+    name: asString(obj.name),
+    alternativeName: asString(obj.alternativeName),
+    description: asString(obj.description),
+    shortDescription: asString(obj.shortDescription),
+    year: asNumber(obj.year),
+    poster: asImage(obj.poster),
+    backdrop: asImage(obj.backdrop),
+    rating: asRatingBlock(obj.rating),
+    genres: asGenreList(obj.genres),
+    premiere: asPremiere(obj.premiere),
+    movieLength: asNumber(obj.movieLength),
   }
 }
 
@@ -173,7 +203,7 @@ export const useFilms = (params?: FilmsQueryParams) => {
 
   if (nextTrigger && !didFiltersChange) queryParams.append('next', nextTrigger)
   const queryString = queryParams.toString()
-  const apiUrl = queryString ? `${BASE_URL}&${queryString}` : BASE_URL
+  const apiUrl = queryString ? `${BASE_URL_GET_FILMS}&${queryString}` : BASE_URL_GET_FILMS
 
   useEffect(() => {
     const controller = new AbortController()
@@ -209,4 +239,51 @@ export const useFilms = (params?: FilmsQueryParams) => {
   }, [apiUrl])
 
   return {films, ref}
+}
+
+export const useFilm = (filmId: string) => {
+  const [film, setFilm] = useState<FilmDetails | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!filmId) {
+      setFilm(null)
+      setIsLoading(false)
+      setError(null)
+      return
+    }
+
+    const controller = new AbortController()
+    setIsLoading(true)
+    setError(null)
+
+    fetch(`${BASE_URL_GET_FILM}${filmId}`, {
+      signal: controller.signal,
+      headers: {
+        'X-API-KEY': import.meta.env.VITE_API_KEY,
+      }
+    }).then((response) => {
+      if (!response.ok) {
+        throw new Error(`Request failed with status ${response.status}`)
+      }
+
+      return response.json()
+    })
+      .then((res: unknown) => {
+        setFilm(serializeFilmDetails(res))
+        setIsLoading(false)
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return
+
+        setFilm(null)
+        setIsLoading(false)
+        setError(error instanceof Error ? error.message : 'Не удалось загрузить фильм')
+      })
+
+    return () => controller.abort()
+  }, [filmId])
+
+  return { film, isLoading, error }
 }

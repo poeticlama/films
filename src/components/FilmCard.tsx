@@ -1,4 +1,5 @@
 import type { Film } from '../types.ts'
+import { useNavigate } from 'react-router'
 
 type FilmPageProps = {
   film: Film
@@ -7,9 +8,13 @@ type FilmPageProps = {
 const FilmCard = ({ film }: FilmPageProps) => {
   const posterUrl = film.poster.previewUrl || film.poster.url || film.backdrop.previewUrl
   const primaryRating = film.rating.kp > 0 ? film.rating.kp : film.rating.imdb > 0 ? film.rating.imdb : null
+  const navigate = useNavigate()
 
   return (
-    <article className="w-72 overflow-hidden rounded-2xl bg-white shadow-lg transition-transform hover:-translate-y-1">
+    <article className="w-72 overflow-hidden rounded-2xl bg-white shadow-lg transition-transform hover:-translate-y-1 hover:cursor-pointer"
+             onClick={() => {
+               navigate('/film/' + film.id)
+             }}>
       {posterUrl ? (
         <img src={posterUrl} alt={film.name} className="h-96 w-full object-cover" />
       ) : (
