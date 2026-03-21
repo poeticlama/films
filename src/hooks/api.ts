@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Film } from '../types.ts'
+import { useIntersectionObserver } from '@siberiacancode/reactuse'
 
 type QueryParamValue = string | string[] | null | undefined
 export type FilmsQueryParams = Record<string, QueryParamValue>
@@ -13,7 +14,7 @@ type FilmsResponse = {
   'hasPrev': boolean
 }
 
-const BASE_URL = 'https://api.poiskkino.dev/v1.5/movie?limit=50'
+const BASE_URL = 'https://api.poiskkino.dev/v1.5/movie?limit=50&sortField=rating.kp&sortType=-1'
 
 const EMPTY_IMAGE = ''
 
@@ -126,31 +127,57 @@ const serializeFilm = (value: unknown): Film => {
 
 export const useFilms = (params?: FilmsQueryParams) => {
   const [films, setFilms] = useState<Film[]>([])
-  const queryParams = new URLSearchParams()
+  const [next, setNext] = useState<string | null>(null)
+  const [nextTrigger, setNextTrigger] = useState<string | null>(null)
+
+  const { ref } = useIntersectionObserver<HTMLDivElement>({
+    threshold: 1,
+    onChange: (entry) => {
+      if (entry[0].isIntersecting) setNextTrigger(next);
+    },
+  });
+
+  const filterQueryParams = new URLSearchParams()
 
   Object.entries(params ?? {}).forEach(([key, value]) => {
     if (Array.isArray(value)) {
       value
         .map((item) => item.trim())
         .filter((item) => item !== '')
-        .forEach((item) => queryParams.append(key, item))
+        .forEach((item) => filterQueryParams.append(key, item))
       return
     }
 
     if (typeof value === 'string') {
       const trimmedValue = value.trim()
       if (trimmedValue !== '') {
-        queryParams.append(key, trimmedValue)
+        filterQueryParams.append(key, trimmedValue)
       }
     }
   })
 
+  const filtersQueryString = filterQueryParams.toString()
+  const previousFiltersQueryRef = useRef(filtersQueryString)
+  const didFiltersChange = previousFiltersQueryRef.current !== filtersQueryString
+
+  if (didFiltersChange) {
+    previousFiltersQueryRef.current = filtersQueryString
+  }
+
+  useEffect(() => {
+    setNext(null)
+    setNextTrigger(null)
+  }, [filtersQueryString])
+
+  const queryParams = new URLSearchParams(filtersQueryString)
+
+  if (nextTrigger && !didFiltersChange) queryParams.append('next', nextTrigger)
   const queryString = queryParams.toString()
   const apiUrl = queryString ? `${BASE_URL}&${queryString}` : BASE_URL
 
   useEffect(() => {
     const controller = new AbortController()
-    setFilms([])
+    if (nextTrigger !== next) setFilms([])
 
     fetch(`${apiUrl}`, {
       signal: controller.signal,
@@ -161,7 +188,17 @@ export const useFilms = (params?: FilmsQueryParams) => {
       .then((res: FilmsResponse) => {
         const docs = Array.isArray(res.docs) ? res.docs : []
         const serializedFilms = docs.map(serializeFilm)
-        setFilms(serializedFilms)
+        if (nextTrigger !== next) {
+          setFilms(serializedFilms)
+        } else {
+          setFilms((prevFilms) => [...prevFilms, ...serializedFilms])
+        }
+
+        if (res.hasNext) {
+          setNext(res.next as string)
+        } else {
+          setNext(null)
+        }
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === 'AbortError') return
@@ -171,5 +208,5 @@ export const useFilms = (params?: FilmsQueryParams) => {
     return () => controller.abort()
   }, [apiUrl])
 
-  return films
+  return {films, ref}
 }
