@@ -1,5 +1,8 @@
-import { useParams } from 'react-router'
+import { useEffect, useState } from 'react'
+import { useNavigate, useParams } from 'react-router'
 import { useFilm } from '../hooks/api.ts'
+import { getFavoriteIds, saveFavoriteIds } from '../utils/favorites.ts'
+import { addComparedId, getComparedIds, removeComparedId, saveComparedIds } from '../utils/compared.ts'
 
 const getNounForm = (value: number, one: string, few: string, many: string) => {
   const absValue = Math.abs(value)
@@ -30,9 +33,26 @@ const formatMovieLengthRu = (totalMinutes: number) => {
 }
 
 const FilmPage = () => {
+  const navigate = useNavigate()
   const params = useParams()
   const filmId = params.filmId ?? ''
   const { film, isLoading, error } = useFilm(filmId)
+  const [favoriteIds, setFavoriteIds] = useState<number[]>(() => getFavoriteIds())
+  const [comparedIds, setComparedIds] = useState<number[]>(() => getComparedIds())
+  const [isAddToFavoritesModalOpen, setIsAddToFavoritesModalOpen] = useState(false)
+
+  useEffect(() => {
+    if (!isAddToFavoritesModalOpen) return
+
+    const onEscapePress = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsAddToFavoritesModalOpen(false)
+      }
+    }
+
+    window.addEventListener('keydown', onEscapePress)
+    return () => window.removeEventListener('keydown', onEscapePress)
+  }, [isAddToFavoritesModalOpen])
 
   if (!filmId) {
     return <div className="mx-auto my-10 max-w-7xl px-6 text-xl text-blue-900">Фильм не найден</div>
@@ -62,9 +82,54 @@ const FilmPage = () => {
   const posterUrl = film.poster.previewUrl || film.poster.url || film.backdrop.previewUrl || film.backdrop.url
   const backdropUrl = film.backdrop.url || film.backdrop.previewUrl
   const primaryRating = film.rating.kp > 0 ? film.rating.kp : film.rating.imdb > 0 ? film.rating.imdb : null
+  const isFavorite = favoriteIds.includes(film.id)
+  const isCompared = comparedIds.includes(film.id)
+
+  const updateFavoriteIds = (nextIds: number[]) => {
+    setFavoriteIds(nextIds)
+    saveFavoriteIds(nextIds)
+  }
+
+  const handleAddToFavorites = () => {
+    if (isFavorite) {
+      setIsAddToFavoritesModalOpen(false)
+      return
+    }
+
+    updateFavoriteIds([...favoriteIds, film.id])
+    setIsAddToFavoritesModalOpen(false)
+  }
+
+  const handleRemoveFromFavorites = () => {
+    updateFavoriteIds(favoriteIds.filter((id) => id !== film.id))
+  }
+
+  const updateComparedIds = (nextIds: number[]) => {
+    setComparedIds(nextIds)
+    saveComparedIds(nextIds)
+  }
+
+  const handleAddToComparison = () => {
+    updateComparedIds(addComparedId(comparedIds, film.id))
+  }
+
+  const handleRemoveFromComparison = () => {
+    updateComparedIds(removeComparedId(comparedIds, film.id))
+  }
 
   return (
     <div className="mx-auto my-8 flex w-full max-w-7xl flex-col gap-6 px-4 text-blue-900 sm:px-6 lg:px-8">
+      <button
+        type="button"
+        onClick={() => navigate(-1)}
+        className="inline-flex w-fit items-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-2 text-base font-medium text-blue-900 shadow-sm transition hover:bg-blue-50 hover:cursor-pointer"
+      >
+        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+          <path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        Вернуться назад
+      </button>
+
       <section className="relative overflow-hidden rounded-3xl bg-blue-950 text-white shadow-2xl">
         {backdropUrl && (
           <img src={backdropUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-5"
@@ -103,13 +168,46 @@ const FilmPage = () => {
             </div>
 
             <div className="flex flex-wrap gap-3">
-              <button type="button" className="rounded-xl bg-white px-6 py-3 text-base font-semibold text-blue-900">
-                Добавить в избранное
+              <button
+                type="button"
+                onClick={() => {
+                  if (isFavorite) {
+                    handleRemoveFromFavorites()
+                    return
+                  }
+
+                  setIsAddToFavoritesModalOpen(true)
+                }}
+                className="rounded-xl bg-white px-6 py-3 text-base font-semibold text-blue-900 hover:cursor-pointer"
+              >
+                {isFavorite ? 'Удалить из избранного' : 'Добавить в избранное'}
               </button>
-              <button type="button"
-                      className="rounded-xl border border-white px-6 py-3 text-base font-semibold text-white">
-                Добавить к сравнению
-              </button>
+              {isCompared ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/compare')}
+                    className="rounded-xl border border-white bg-white/10 px-6 py-3 text-base font-semibold text-white hover:cursor-pointer"
+                  >
+                    Перейти к сравнению
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRemoveFromComparison}
+                    className="rounded-xl border border-white px-6 py-3 text-base font-semibold text-white hover:cursor-pointer"
+                  >
+                    Удалить из сравнения
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleAddToComparison}
+                  className="rounded-xl border border-white px-6 py-3 text-base font-semibold text-white hover:cursor-pointer"
+                >
+                  Добавить к сравнению
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -135,6 +233,39 @@ const FilmPage = () => {
           )}
         </div>
       </section>
+
+      {isAddToFavoritesModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 px-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setIsAddToFavoritesModalOpen(false)
+            }
+          }}
+        >
+          <div className="w-full max-w-xl rounded-3xl bg-white p-8 shadow-2xl">
+            <p className="text-xl font-semibold text-blue-900">
+              Вы уверены, что хотите добавить фильм в избранное?
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setIsAddToFavoritesModalOpen(false)}
+                className="rounded-xl border border-blue-200 px-5 py-2 text-base font-medium text-blue-900 hover:cursor-pointer"
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                onClick={handleAddToFavorites}
+                className="rounded-xl bg-blue-900 px-5 py-2 text-base font-semibold text-white hover:cursor-pointer"
+              >
+                Добавить
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

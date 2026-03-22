@@ -2,7 +2,7 @@ import type { Film } from '../types.ts'
 import { useNavigate } from 'react-router'
 
 type FilmPageProps = {
-  film: Film
+  film: Pick<Film, 'id' | 'name' | 'alternativeName' | 'year' | 'poster' | 'backdrop' | 'rating'>
 }
 
 const FilmCard = ({ film }: FilmPageProps) => {
@@ -39,7 +39,7 @@ const FilmCard = ({ film }: FilmPageProps) => {
       <div className="flex items-start justify-between gap-4 p-4">
         <div className="min-w-0">
           <h2
-            className="truncate text-lg font-semibold text-slate-800">{film.name || film.alternativeName || film.names.name}</h2>
+            className="truncate text-lg font-semibold text-slate-800">{film.name || film.alternativeName || 'Без названия'}</h2>
           <p className="text-sm text-slate-500">{film.year || ''}</p>
         </div>
 
